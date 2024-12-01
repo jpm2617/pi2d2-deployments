@@ -1,0 +1,6 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "psql.fullname" . }}
+  labels:
+    {{- include "psql.labels" . | nindent 4 }}
