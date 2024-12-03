@@ -48,7 +48,7 @@ spec:
                   key: maybe-secret-key-base
             - name: SELF_HOSTED
               value: "true"
-          image: ghcr.io/maybe-finance/maybe:v0.1.0
+          image: ghcr.io/maybe-finance/maybe:0.1.0
           name: app
           ports:
             - containerPort: 3000
