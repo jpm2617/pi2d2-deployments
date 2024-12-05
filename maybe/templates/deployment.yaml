@@ -1,63 +1,69 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert -f compose.yml
-    kompose.version: 1.34.0 (HEAD)
-  labels:
-    io.kompose.service: app
-  name: app
+  name: {{ include "maybe.fullname" . }}
+  labels: {{- include "maybe.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
-    matchLabels:
-      io.kompose.service: app
-  strategy:
-    type: Recreate
+    matchLabels: {{- include "maybe.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert -f compose.yml
-        kompose.version: 1.34.0 (HEAD)
       labels:
-        io.kompose.service: app
+        {{- include "maybe.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "maybe.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - env:
-            - name: DB_HOST
-              value: postgres
-            - name: GOOD_JOB_EXECUTION_MODE
-              value: async
-            - name: POSTGRES_DB
-              value: maybe_production
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: maybe-postgres-password
-                  key: maybe-postgres-password
-            - name: POSTGRES_USER
-              value: maybe_user
-            - name: RAILS_ASSUME_SSL
-              value: "false"
-            - name: RAILS_FORCE_SSL
-              value: "false"
-            - name: SECRET_KEY_BASE
-              valueFrom:
-                secretKeyRef:
-                  name: maybe-secret-key-base
-                  key: maybe-secret-key-base
-            - name: SELF_HOSTED
-              value: "true"
-          image: ghcr.io/maybe-finance/maybe:0.1.0
-          name: app
-          ports:
-            - containerPort: 3000
-              protocol: TCP
-          volumeMounts:
-            - mountPath: /rails/storage
-              name: app-storage
+      - name: maybe
+        image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        volumeMounts:
+        - name: storage
+          mountPath: /rails/storage
+        env:
+        - name: SELF_HOSTING_ENABLED
+          value: "{{ .Values.env.selfHostingEnabled }}"
+        - name: RAILS_FORCE_SSL
+          value: "{{ .Values.env.railsForceSsl }}"
+        - name: RAILS_ASSUME_SSL
+          value: "{{ .Values.env.railsAssumeSsl }}"
+        - name: GOOD_JOB_EXECUTION_MODE
+          value: "{{ .Values.env.goodJobExecutionMode }}"
+        - name: SECRET_KEY_BASE
+          valueFrom:
+            secretKeyRef:
+              name: maybe
+              key: maybe-secret-key-base
+        - name: DB_HOST
+          value: "{{ .Release.Name }}-postgresql"
+        - name: POSTGRES_DB
+          value: {{ .Values.postgresql.auth.database }}
+        - name: POSTGRES_USER
+          value: {{ .Values.postgresql.auth.username }}
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: maybe
+              key: maybe-postgres-password
       restartPolicy: Always
       volumes:
-        - name: app-storage
-          persistentVolumeClaim:
-            claimName: app-storage
+      - name: storage
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-storage
